@@ -100,7 +100,7 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
             animate={{ opacity: 1, y: 0 }}
             className="flex justify-end"
           >
-            <div className="max-w-[75%] rounded-xl p-3.5 shadow-lg bg-gradient-to-br from-cyan-500 to-blue-600 text-white border border-cyan-400/30">
+            <div className="max-w-[75%] rounded-xl p-3.5 shadow-lg bg-white/10 text-white border border-white/20">
               {message.hasFile && (
                 <div className="flex items-center gap-2 mb-2 text-sm">
                   <File className="w-4 h-4" />
@@ -140,27 +140,27 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
                   <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#grad4)" strokeWidth="1.5" strokeLinecap="round" />
                   <defs>
                     <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
-                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.9" />
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#e5e5e5" stopOpacity="0.9" />
                     </linearGradient>
                     <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#d4d4d4" stopOpacity="0.8" />
                     </linearGradient>
                     <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.7" />
-                      <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.7" />
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity="0.7" />
+                      <stop offset="100%" stopColor="#c4c4c4" stopOpacity="0.7" />
                     </linearGradient>
                     <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#06b6d4" />
-                      <stop offset="100%" stopColor="#3b82f6" />
+                      <stop offset="0%" stopColor="#ffffff" />
+                      <stop offset="100%" stopColor="#d4d4d4" />
                     </linearGradient>
                   </defs>
                 </svg>
               </div>
               {/* Text Shimmer */}
               <TextShimmer
-                className="text-sm font-medium [--base-color:theme(colors.cyan.400)] [--base-gradient-color:theme(colors.cyan.200)] dark:[--base-color:theme(colors.cyan.500)] dark:[--base-gradient-color:theme(colors.white)]"
+                className="text-sm font-medium [--base-color:theme(colors.gray.400)] [--base-gradient-color:theme(colors.white)] dark:[--base-color:theme(colors.gray.500)] dark:[--base-gradient-color:theme(colors.white)]"
                 duration={1.5}
               >
                 MedicAI is thinking...

@@ -327,7 +327,7 @@ export default function MedicAI() {
           className="mb-3 flex items-center justify-between p-2.5 bg-white/5 rounded-lg border border-white/10"
         >
           <div className="flex items-center gap-2">
-            <File size={16} className="text-cyan-400" />
+            <File size={16} className="text-white/60" />
             <span className="text-sm truncate max-w-[200px] text-light">{selectedFile.name}</span>
           </div>
           <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10" onClick={() => setSelectedFile(null)}>
@@ -350,12 +350,12 @@ export default function MedicAI() {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500/50"
+          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:border-white/30"
         />
         <Button
           onClick={handleSendMessage}
           disabled={(inputValue.trim() === "" && !selectedFile) || isTyping}
-          className="shrink-0 bg-cyan-500 hover:bg-cyan-600 transition-colors"
+          className="shrink-0 bg-white/10 hover:bg-white/20 transition-colors border border-white/20"
         >
           <Send size={16} />
         </Button>
@@ -372,12 +372,12 @@ export default function MedicAI() {
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500/50"
+          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:border-white/30"
         />
         <Button
           onClick={handleSendMessage}
           disabled={inputValue.trim() === "" || isTyping}
-          className="shrink-0 bg-cyan-500 hover:bg-cyan-600 transition-colors"
+          className="shrink-0 bg-white/10 hover:bg-white/20 transition-colors border border-white/20"
         >
           <Send size={16} />
         </Button>
@@ -403,33 +403,33 @@ export default function MedicAI() {
         <Sidebar className="z-50 w-64 flex-shrink-0 border-r border-white/10 glass-dark">
           <div className="h-14 px-3 border-b border-white/10 flex items-center gap-2.5">
             <div className="w-10 h-10 relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-500/10 to-blue-600/10" />
+              <div className="absolute inset-0 rounded-lg bg-white/5" />
               <svg
                 viewBox="0 0 32 32"
                 fill="none"
                 className="w-7 h-7 relative z-10"
                 xmlns="http://www.w3.org/2000/svg"
               >
-                <circle cx="16" cy="16" r="14" stroke="url(#grad1)" strokeWidth="1.5" fill="none" />
-                <circle cx="16" cy="16" r="10" stroke="url(#grad2)" strokeWidth="1.5" fill="none" />
-                <circle cx="16" cy="16" r="6" stroke="url(#grad3)" strokeWidth="1.5" fill="none" />
-                <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#grad4)" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="16" cy="16" r="14" stroke="url(#navGrad1)" strokeWidth="1.5" fill="none" />
+                <circle cx="16" cy="16" r="10" stroke="url(#navGrad2)" strokeWidth="1.5" fill="none" />
+                <circle cx="16" cy="16" r="6" stroke="url(#navGrad3)" strokeWidth="1.5" fill="none" />
+                <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#navGrad4)" strokeWidth="1.5" strokeLinecap="round" />
                 <defs>
-                  <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.9" />
+                  <linearGradient id="navGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#e5e5e5" stopOpacity="0.9" />
                   </linearGradient>
-                  <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                  <linearGradient id="navGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#d4d4d4" stopOpacity="0.8" />
                   </linearGradient>
-                  <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.7" />
-                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.7" />
+                  <linearGradient id="navGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.7" />
+                    <stop offset="100%" stopColor="#c4c4c4" stopOpacity="0.7" />
                   </linearGradient>
-                  <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#06b6d4" />
-                    <stop offset="100%" stopColor="#3b82f6" />
+                  <linearGradient id="navGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#ffffff" />
+                    <stop offset="100%" stopColor="#d4d4d4" />
                   </linearGradient>
                 </defs>
               </svg>
@@ -438,7 +438,7 @@ export default function MedicAI() {
               <span className="text-lg font-bold text-white tracking-tight">
                 MedicAI
               </span>
-              <span className="text-[10px] text-cyan-400/70 font-medium uppercase tracking-wider">
+              <span className="text-[10px] text-white/50 font-medium uppercase tracking-wider">
                 Healthcare AI
               </span>
             </div>
@@ -467,15 +467,15 @@ export default function MedicAI() {
                 >
                     <div className="space-y-1">
                       <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('symptom-checker')}>
-                        <MessageCircle size={16} className="text-cyan-400" />
+                        <MessageCircle size={16} className="text-white/60" />
                         <span>General Chat</span>
                       </Button>
                       <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('report-analyzer')}>
-                        <ClipboardList size={16} className="text-emerald-400" />
+                        <ClipboardList size={16} className="text-white/60" />
                         <span>Report Analyzer</span>
                       </Button>
                       <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('mental-health')}>
-                        <Heart size={16} className="text-rose-400" />
+                        <Heart size={16} className="text-white/60" />
                         <span>Mental Health</span>
                       </Button>
                     </div>
