@@ -65,44 +65,35 @@ const chatTypeMap: Record<ChatType, ChatType> = {
   'mental-health': 'mental-health',
 }
 
-  // Generate a larger set of sample chat sessions
-  const generateSampleSessions = () => {
-    const sessions: ChatSession[] = []
-  const types: ChatType[] = ['symptom-checker', 'report-analyzer', 'mental-health']
-  
-  for (let i = 0; i < 20; i++) {
-    const type = types[i % 3]
-      sessions.push({
-      id: (i + 1).toString(),
-        type,
-      title: `${type.charAt(0).toUpperCase() + type.slice(1).replace('-', ' ')} Session ${i + 1}`,
-      lastMessage: `Last message for session ${i + 1}`,
-      timestamp: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-        messages: [
-          {
-            id: "1",
-          content: `Initial message for session ${i + 1}`,
-          sender: "assistant",
-          timestamp: new Date(Date.now() - i * 24 * 60 * 60 * 1000),
-          },
-        ],
-      })
-    }
-    return sessions
-  }
-
 export default function MedicAI() {
-  // Chat sessions state
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>(generateSampleSessions)
+  // Initialize with a default session
+  const getDefaultSession = (): ChatSession => ({
+    id: Date.now().toString(),
+    type: 'symptom-checker',
+    title: 'New Chat',
+    lastMessage: "Hello! How can I help you with your medical concerns today?",
+    timestamp: new Date(),
+    messages: [
+      {
+        id: "1",
+        content: "Hello! How can I help you with your medical concerns today?",
+        sender: "assistant",
+        timestamp: new Date(),
+      },
+    ],
+  })
+
+  // Chat sessions state - start with just one default session
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([getDefaultSession()])
   const [visibleSessions, setVisibleSessions] = useState<ChatSession[]>([])
   const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
 
   // Current active session
   const [activeSession, setActiveSession] = useState<ChatSession>(chatSessions[0])
 
   // Message states
-  const [messages, setMessages] = useState<Message[]>(activeSession.messages)
+  const [messages, setMessages] = useState<Message[]>(chatSessions[0].messages)
   const [inputValue, setInputValue] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isTyping, setIsTyping] = useState(false)
@@ -328,12 +319,12 @@ export default function MedicAI() {
 
   // Render input area with file upload for report analyzer
   const renderReportInput = () => (
-    <div className="p-4 border-t border-white/20 glass-panel-subtle">
+    <div className="p-4 border-t border-white/10">
       {selectedFile && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-3 flex items-center justify-between p-2.5 glass-panel-subtle rounded-lg"
+          className="mb-3 flex items-center justify-between p-2.5 bg-white/5 rounded-lg border border-white/10"
         >
           <div className="flex items-center gap-2">
             <File size={16} className="text-cyan-400" />
@@ -349,22 +340,22 @@ export default function MedicAI() {
           variant="outline"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 glass-panel-subtle border-white/25 hover:glass-panel-hover transition-all"
+          className="shrink-0 bg-white/5 border-white/10 hover:bg-white/10"
         >
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".pdf,image/*" />
-          <File size={16} className="text-cyan-400" />
+          <File size={16} className="text-gray-400" />
         </Button>
         <Input
           placeholder="Ask about your medical report..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="glass-panel-subtle border-white/25 text-light placeholder:text-muted-custom focus-visible:ring-cyan-500 focus-visible:ring-1 focus-visible:border-cyan-500/50"
+          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500/50"
         />
         <Button
           onClick={handleSendMessage}
           disabled={(inputValue.trim() === "" && !selectedFile) || isTyping}
-          className="shrink-0 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/20 border border-cyan-400/20"
+          className="shrink-0 bg-cyan-500 hover:bg-cyan-600 transition-colors"
         >
           <Send size={16} />
         </Button>
@@ -374,19 +365,19 @@ export default function MedicAI() {
 
   // Render standard input area without file upload
   const renderStandardInput = (placeholder: string) => (
-    <div className="p-4 border-t border-white/20 glass-panel-subtle">
+    <div className="p-4 border-t border-white/10">
       <div className="flex gap-2">
         <Input
           placeholder={placeholder}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="glass-panel-subtle border-white/25 text-light placeholder:text-muted-custom focus-visible:ring-cyan-500 focus-visible:ring-1 focus-visible:border-cyan-500/50"
+          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-cyan-500/50 focus-visible:border-cyan-500/50"
         />
         <Button
           onClick={handleSendMessage}
           disabled={inputValue.trim() === "" || isTyping}
-          className="shrink-0 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/20 border border-cyan-400/20"
+          className="shrink-0 bg-cyan-500 hover:bg-cyan-600 transition-colors"
         >
           <Send size={16} />
         </Button>
@@ -409,8 +400,8 @@ export default function MedicAI() {
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="flex h-screen w-full bg-black">
-        <Sidebar className="z-50 w-72 flex-shrink-0 border-r border-white/20 glass-panel">
-          <div className="h-16 px-4 border-b border-white/20 flex items-center gap-3">
+        <Sidebar className="z-50 w-64 flex-shrink-0 border-r border-white/10 glass-dark">
+          <div className="h-14 px-3 border-b border-white/10 flex items-center gap-2.5">
             <div className="w-10 h-10 relative flex items-center justify-center">
               <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-500/10 to-blue-600/10" />
               <svg
@@ -453,16 +444,16 @@ export default function MedicAI() {
             </div>
           </div>
 
-          <SidebarContent className="flex flex-col h-[calc(100vh-4rem)]">
-            <div className="p-3">
+          <SidebarContent className="flex flex-col h-[calc(100vh-3.5rem)]">
+            <div className="p-2">
             <Button
               variant="outline"
-                className="w-full justify-start gap-2 glass-panel-subtle border-white/25 hover:glass-panel-hover text-white"
+                className="w-full justify-start gap-2 bg-white/5 border-white/10 hover:bg-white/10 text-white text-sm"
               onClick={() => setShowNewChatMenu(!showNewChatMenu)}
             >
-              <PlusCircle size={16} className="text-cyan-400" />
-              <span className="text-sm font-medium">New Chat</span>
-              <ChevronDown size={14} className={cn("ml-auto transition-transform text-cyan-400", showNewChatMenu && "rotate-180")} />
+              <PlusCircle size={16} className="text-gray-400" />
+              <span className="font-normal">New Chat</span>
+              <ChevronDown size={14} className={cn("ml-auto transition-transform text-gray-400", showNewChatMenu && "rotate-180")} />
             </Button>
 
             <AnimatePresence>
@@ -500,11 +491,11 @@ export default function MedicAI() {
             </div>
           </SidebarContent>
 
-          <SidebarFooter className="p-3 border-t border-white/20">
+          <SidebarFooter className="p-2 border-t border-white/10">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => {}} className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200 text-sm" tooltip="Settings">
-                    <Settings size={16} className="text-cyan-400" />
+                <SidebarMenuButton onClick={() => {}} className="w-full justify-start gap-2 hover:bg-white/5 text-gray-400 text-sm" tooltip="Settings">
+                    <Settings size={16} />
                   <span>Settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -513,7 +504,7 @@ export default function MedicAI() {
         </Sidebar>
 
         <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <div className="flex-1 p-4 overflow-hidden">
+          <div className="flex-1 p-6 overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeSession.id}
@@ -523,7 +514,7 @@ export default function MedicAI() {
                 transition={{ duration: 0.3 }}
                 className="h-full"
               >
-                <Card className="flex flex-col h-full glass-panel glass-sheen rounded-2xl overflow-hidden border border-white/30 shadow-[0_12px_40px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.1)]">
+                <Card className="flex flex-col h-full glass-dark rounded-2xl overflow-hidden">
                   <AnimationHeader />
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}

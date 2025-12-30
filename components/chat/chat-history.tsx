@@ -34,31 +34,23 @@ export function ChatHistory({
 
   return (
     <ScrollArea className="h-[calc(100vh-180px)]">
-      <div className="space-y-2 p-2.5">
+      <div className="space-y-1 p-2">
         {visibleSessions.map((session) => (
           <button
             key={session.id}
             onClick={() => setActiveSession(session)}
-            className={`w-full text-left p-2.5 rounded-lg transition-all ${
+            className={`w-full text-left px-3 py-2.5 rounded-lg transition-all text-sm ${
               activeSession.id === session.id
-                ? "glass-panel-subtle border border-cyan-500/40 shadow-md interactive"
-                : "hover:bg-white/5 border border-transparent"
+                ? "bg-white/10 text-white"
+                : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
             }`}
           >
             <div className="flex items-center gap-2.5">
               <div className={`flex-shrink-0 ${activeSession.id === session.id ? "text-cyan-400" : "text-gray-500"}`}>
                 {getIcon(session.type)}
               </div>
-              <div className="flex-1 min-w-0">
-                <div className={`text-sm font-medium truncate ${activeSession.id === session.id ? "text-light" : "text-gray-300"}`}>
-                  {session.title}
-                </div>
-                <div className="text-xs text-muted-custom truncate">
-                  {session.lastMessage}
-                </div>
-              </div>
-              <div className="text-[10px] text-gray-500 flex-shrink-0">
-                {format(session.timestamp, "HH:mm")}
+              <div className="flex-1 truncate font-normal">
+                {session.title}
               </div>
             </div>
           </button>
@@ -66,7 +58,7 @@ export function ChatHistory({
         {hasMore && (
           <Button
             variant="ghost"
-            className="w-full hover:bg-white/5 text-sm text-gray-400"
+            className="w-full hover:bg-white/5 text-sm text-gray-400 mt-2"
             onClick={loadMoreSessions}
             disabled={isLoadingMore}
           >
