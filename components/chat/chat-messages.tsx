@@ -19,7 +19,7 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
   }
 
   return (
-    <div className="flex flex-col space-y-4 p-6 min-h-[calc(100vh-16rem)]">
+    <div className="flex flex-col space-y-3 p-4 min-h-[calc(100vh-16rem)]">
       {messages.map((message) => (
         <motion.div
           key={message.id}
@@ -30,10 +30,10 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
           }`}
         >
           <div
-            className={`max-w-[80%] rounded-xl p-4 shadow-lg ${
+            className={`max-w-[75%] rounded-xl p-3.5 shadow-lg ${
               message.sender === "user"
-                ? "bg-gradient-to-br from-cyan-500 to-blue-600 text-white"
-                : "glass-lighter border border-white/10"
+                ? "bg-gradient-to-br from-cyan-500 to-blue-600 text-white border border-cyan-400/30"
+                : "glass-panel border border-white/30"
             }`}
           >
             {message.hasFile && (
@@ -43,16 +43,16 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
               </div>
             )}
             <div
-              className={`break-words whitespace-pre-wrap text-base ${
-                message.sender === "user" ? "text-white" : "text-gray-200"
+              className={`break-words whitespace-pre-wrap text-sm leading-relaxed ${
+                message.sender === "user" ? "text-white" : "text-light"
               }`}
               dangerouslySetInnerHTML={{ __html: formatMessage(message.content) }}
             />
             <div
-              className={`text-xs mt-2 ${
+              className={`text-[10px] mt-2 ${
                 message.sender === "user"
-                  ? "text-white/70"
-                  : "text-gray-400"
+                  ? "text-white/60"
+                  : "text-muted-custom"
               }`}
             >
               {formatTime(message.timestamp)}
@@ -66,7 +66,7 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
           animate={{ opacity: 1 }}
           className="flex justify-start"
         >
-          <div className="glass-lighter border border-white/10 rounded-xl p-4 shadow-lg">
+          <div className="glass-panel-subtle border border-white/25 rounded-xl p-3.5 shadow-lg">
             <div className="flex gap-1">
               <motion.div
                 className="w-2 h-2 bg-cyan-400 rounded-full"

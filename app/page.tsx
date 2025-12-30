@@ -328,19 +328,19 @@ export default function MedicAI() {
 
   // Render input area with file upload for report analyzer
   const renderReportInput = () => (
-    <div className="p-4 border-t border-white/10 glass-dark">
+    <div className="p-4 border-t border-white/20 glass-panel-subtle">
       {selectedFile && (
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-2 flex items-center justify-between p-3 glass-lighter rounded-xl"
+          className="mb-3 flex items-center justify-between p-2.5 glass-panel-subtle rounded-lg"
         >
           <div className="flex items-center gap-2">
-            <File size={18} className="text-cyan-400" />
-            <span className="text-sm truncate max-w-[200px] text-gray-200">{selectedFile.name}</span>
+            <File size={16} className="text-cyan-400" />
+            <span className="text-sm truncate max-w-[200px] text-light">{selectedFile.name}</span>
           </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setSelectedFile(null)}>
-            <X size={14} />
+          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10" onClick={() => setSelectedFile(null)}>
+            <X size={12} />
           </Button>
         </motion.div>
       )}
@@ -349,24 +349,24 @@ export default function MedicAI() {
           variant="outline"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 glass-lighter border-white/20 hover:bg-white/10 transition-colors"
+          className="shrink-0 glass-panel-subtle border-white/25 hover:glass-panel-hover transition-all"
         >
           <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".pdf,image/*" />
-          <File size={18} className="text-cyan-400" />
+          <File size={16} className="text-cyan-400" />
         </Button>
         <Input
           placeholder="Ask about your medical report..."
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="glass-lighter border-white/20 text-white placeholder:text-gray-400 focus-visible:ring-cyan-500 focus-visible:ring-2 focus-visible:border-cyan-500/50"
+          className="glass-panel-subtle border-white/25 text-light placeholder:text-muted-custom focus-visible:ring-cyan-500 focus-visible:ring-1 focus-visible:border-cyan-500/50"
         />
         <Button
           onClick={handleSendMessage}
           disabled={(inputValue.trim() === "" && !selectedFile) || isTyping}
-          className="shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/30"
+          className="shrink-0 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/20 border border-cyan-400/20"
         >
-          <Send size={18} />
+          <Send size={16} />
         </Button>
       </div>
     </div>
@@ -374,21 +374,21 @@ export default function MedicAI() {
 
   // Render standard input area without file upload
   const renderStandardInput = (placeholder: string) => (
-    <div className="p-4 border-t border-white/10 glass-dark">
+    <div className="p-4 border-t border-white/20 glass-panel-subtle">
       <div className="flex gap-2">
         <Input
           placeholder={placeholder}
           value={inputValue}
           onChange={(e) => setInputValue(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="glass-lighter border-white/20 text-white placeholder:text-gray-400 focus-visible:ring-cyan-500 focus-visible:ring-2 focus-visible:border-cyan-500/50"
+          className="glass-panel-subtle border-white/25 text-light placeholder:text-muted-custom focus-visible:ring-cyan-500 focus-visible:ring-1 focus-visible:border-cyan-500/50"
         />
         <Button
           onClick={handleSendMessage}
           disabled={inputValue.trim() === "" || isTyping}
-          className="shrink-0 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/30"
+          className="shrink-0 bg-gradient-to-br from-cyan-500 to-blue-600 hover:from-cyan-600 hover:to-blue-700 transition-all duration-300 shadow-lg shadow-cyan-500/20 border border-cyan-400/20"
         >
-          <Send size={18} />
+          <Send size={16} />
         </Button>
       </div>
     </div>
@@ -409,66 +409,60 @@ export default function MedicAI() {
   return (
     <SidebarProvider defaultOpen={!isMobile}>
       <div className="flex h-screen w-full bg-black">
-        <Sidebar className="z-50 w-80 flex-shrink-0 border-r border-white/10 glass-dark">
-          <div className="h-16 px-4 border-b border-white/10 flex items-center bg-black/20">
-            <div className="w-12 h-12 relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 animate-glow" />
+        <Sidebar className="z-50 w-72 flex-shrink-0 border-r border-white/20 glass-panel">
+          <div className="h-16 px-4 border-b border-white/20 flex items-center gap-3">
+            <div className="w-10 h-10 relative flex items-center justify-center">
+              <div className="absolute inset-0 rounded-lg bg-gradient-to-br from-cyan-500/10 to-blue-600/10" />
               <svg
-                viewBox="0 0 24 24"
+                viewBox="0 0 32 32"
                 fill="none"
-                className="w-8 h-8 text-cyan-400 relative z-10"
+                className="w-7 h-7 relative z-10"
                 xmlns="http://www.w3.org/2000/svg"
               >
-                <path
-                  d="M12 2L2 7L12 12L22 7L12 2Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="url(#grad1)"
-                />
-                <path
-                  d="M2 17L12 22L22 17"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M2 12L12 17L22 12"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
+                <circle cx="16" cy="16" r="14" stroke="url(#grad1)" strokeWidth="1.5" fill="none" />
+                <circle cx="16" cy="16" r="10" stroke="url(#grad2)" strokeWidth="1.5" fill="none" />
+                <circle cx="16" cy="16" r="6" stroke="url(#grad3)" strokeWidth="1.5" fill="none" />
+                <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#grad4)" strokeWidth="1.5" strokeLinecap="round" />
                 <defs>
                   <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{stopColor: 'rgb(34, 211, 238)', stopOpacity: 0.3}} />
-                    <stop offset="100%" style={{stopColor: 'rgb(37, 99, 235)', stopOpacity: 0.3}} />
+                    <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
+                    <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.9" />
+                  </linearGradient>
+                  <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+                    <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                  </linearGradient>
+                  <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.7" />
+                    <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.7" />
+                  </linearGradient>
+                  <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor="#06b6d4" />
+                    <stop offset="100%" stopColor="#3b82f6" />
                   </linearGradient>
                 </defs>
               </svg>
             </div>
-            <div className="ml-3 flex flex-col">
-              <span className="text-xl font-bold text-white tracking-tight">
+            <div className="flex flex-col">
+              <span className="text-lg font-bold text-white tracking-tight">
                 MedicAI
               </span>
-              <span className="text-xs text-cyan-400/80 font-medium">
-                Healthcare Assistant
+              <span className="text-[10px] text-cyan-400/70 font-medium uppercase tracking-wider">
+                Healthcare AI
               </span>
             </div>
           </div>
 
-          <SidebarContent className="flex flex-col h-[calc(100vh-4rem)] bg-black/20">
+          <SidebarContent className="flex flex-col h-[calc(100vh-4rem)]">
             <div className="p-3">
             <Button
               variant="outline"
-                className="w-full justify-start gap-2 glass-lighter border-white/20 hover:bg-white/10 text-white"
+                className="w-full justify-start gap-2 glass-panel-subtle border-white/25 hover:glass-panel-hover text-white"
               onClick={() => setShowNewChatMenu(!showNewChatMenu)}
             >
-              <PlusCircle size={18} className="text-cyan-400" />
-              <span>New Chat</span>
-              <ChevronDown size={16} className={cn("ml-auto transition-transform text-cyan-400", showNewChatMenu && "rotate-180")} />
+              <PlusCircle size={16} className="text-cyan-400" />
+              <span className="text-sm font-medium">New Chat</span>
+              <ChevronDown size={14} className={cn("ml-auto transition-transform text-cyan-400", showNewChatMenu && "rotate-180")} />
             </Button>
 
             <AnimatePresence>
@@ -506,11 +500,11 @@ export default function MedicAI() {
             </div>
           </SidebarContent>
 
-          <SidebarFooter className="p-3 border-t border-white/10 bg-black/20">
+          <SidebarFooter className="p-3 border-t border-white/20">
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => {}} className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" tooltip="Settings">
-                    <Settings size={18} className="text-cyan-400" />
+                <SidebarMenuButton onClick={() => {}} className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200 text-sm" tooltip="Settings">
+                    <Settings size={16} className="text-cyan-400" />
                   <span>Settings</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -518,8 +512,8 @@ export default function MedicAI() {
           </SidebarFooter>
         </Sidebar>
 
-        <main className="flex-1 flex flex-col h-screen">
-          <div className="flex-1 p-6 h-full">
+        <main className="flex-1 flex flex-col h-screen overflow-hidden">
+          <div className="flex-1 p-4 overflow-hidden">
             <AnimatePresence mode="wait">
               <motion.div
                 key={activeSession.id}
@@ -529,7 +523,7 @@ export default function MedicAI() {
                 transition={{ duration: 0.3 }}
                 className="h-full"
               >
-                <Card className="flex flex-col h-full glass shadow-glass-lg rounded-2xl overflow-hidden border border-white/10">
+                <Card className="flex flex-col h-full glass-panel glass-sheen rounded-2xl overflow-hidden border border-white/30 shadow-[0_12px_40px_rgba(0,0,0,0.3),inset_0_1px_0_rgba(255,255,255,0.5),inset_0_-1px_0_rgba(0,0,0,0.1)]">
                   <AnimationHeader />
                   <div className="flex-1 overflow-y-auto min-h-0">
                     {renderMessages()}
