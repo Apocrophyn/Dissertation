@@ -5,6 +5,7 @@ import { File } from "lucide-react"
 import { Message } from "@/types/chat"
 import { motion } from "framer-motion"
 import { useAnimatedText } from "@/components/ui/animated-text"
+import { TextShimmer } from "@/components/ui/text-shimmer"
 import { useState, useEffect } from "react"
 
 interface ChatMessagesProps {
@@ -119,39 +120,51 @@ export function ChatMessages({ messages, isTyping }: ChatMessagesProps) {
       })}
       {isTyping && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
           className="flex justify-start"
         >
-          <div className="glass-panel-subtle border border-white/25 rounded-xl p-3.5 shadow-lg">
-            <div className="flex gap-1">
-              <motion.div
-                className="w-2 h-2 bg-cyan-400 rounded-full"
-                animate={{ y: [0, -5, 0] }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  delay: 0,
-                }}
-              />
-              <motion.div
-                className="w-2 h-2 bg-cyan-400 rounded-full"
-                animate={{ y: [0, -5, 0] }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  delay: 0.2,
-                }}
-              />
-              <motion.div
-                className="w-2 h-2 bg-cyan-400 rounded-full"
-                animate={{ y: [0, -5, 0] }}
-                transition={{
-                  duration: 0.6,
-                  repeat: Infinity,
-                  delay: 0.4,
-                }}
-              />
+          <div className="glass-panel border border-white/30 rounded-xl p-3.5 shadow-lg">
+            <div className="flex items-center gap-3">
+              {/* MedicAI Logo */}
+              <div className="flex-shrink-0">
+                <svg
+                  viewBox="0 0 32 32"
+                  fill="none"
+                  className="w-6 h-6"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <circle cx="16" cy="16" r="14" stroke="url(#grad1)" strokeWidth="1.5" fill="none" />
+                  <circle cx="16" cy="16" r="10" stroke="url(#grad2)" strokeWidth="1.5" fill="none" />
+                  <circle cx="16" cy="16" r="6" stroke="url(#grad3)" strokeWidth="1.5" fill="none" />
+                  <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#grad4)" strokeWidth="1.5" strokeLinecap="round" />
+                  <defs>
+                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#06b6d4" stopOpacity="0.9" />
+                      <stop offset="100%" stopColor="#0ea5e9" stopOpacity="0.9" />
+                    </linearGradient>
+                    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.8" />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.8" />
+                    </linearGradient>
+                    <linearGradient id="grad3" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.7" />
+                      <stop offset="100%" stopColor="#60a5fa" stopOpacity="0.7" />
+                    </linearGradient>
+                    <linearGradient id="grad4" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#06b6d4" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+              </div>
+              {/* Text Shimmer */}
+              <TextShimmer
+                className="text-sm font-medium [--base-color:theme(colors.cyan.400)] [--base-gradient-color:theme(colors.cyan.200)] dark:[--base-color:theme(colors.cyan.500)] dark:[--base-gradient-color:theme(colors.white)]"
+                duration={1.5}
+              >
+                MedicAI is thinking...
+              </TextShimmer>
             </div>
           </div>
         </motion.div>
