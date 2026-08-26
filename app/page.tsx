@@ -1,537 +1,269 @@
 "use client"
 
-import type React from "react"
-import { useState, useRef, useEffect } from "react"
-import {
-  Send,
-  File,
-  X,
-  Volume2,
-  MessageCircle,
-  ClipboardList,
-  Heart,
-  Settings,
-  PlusCircle,
-  ChevronDown,
-  ChevronRight,
-  ChevronUp,
-} from "lucide-react"
-import { Card } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { useToast } from "@/components/ui/use-toast"
-import { cn } from "@/lib/utils"
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarProvider,
-  SidebarMenu,
-  SidebarMenuItem,
-  SidebarMenuButton,
-  SidebarTrigger,
-  SidebarFooter,
-  SidebarSeparator,
-} from "@/components/ui/sidebar"
-import { motion, AnimatePresence } from "framer-motion"
+import { useState, useRef, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
-import { ChatType, ChatSession, Message } from '../types/chat'
-import { sendChatMessage, uploadFile } from '../lib/chat-api'
-import { MedicalLogo } from "@/components/medical-logo"
+import { AnimatePresence, motion } from "framer-motion"
+
+import { useToast } from "@/components/ui/use-toast"
 import { useMobileContext } from "@/components/providers/mobile-provider"
+import { AmbientField } from "@/components/ambient-field"
+import { AppSidebar } from "@/components/chat/app-sidebar"
+import { SessionHeader } from "@/components/chat/session-header"
+import { Composer } from "@/components/chat/composer"
+import { EmptyState } from "@/components/chat/empty-state"
+import { getMode } from "@/components/chat/mode-config"
+import { sendChatMessage, uploadFile } from "@/lib/chat-api"
+import type { ChatType, ChatSession, Message } from "@/types/chat"
+import { cn } from "@/lib/utils"
 
-// Dynamic imports
-const ChatHistory = dynamic(() => import('@/components/chat/chat-history').then(mod => mod.ChatHistory), {
-  ssr: false,
-  loading: () => <div>Loading chat history...</div>
-})
+const ChatMessages = dynamic(
+  () => import("@/components/chat/chat-messages").then((m) => m.ChatMessages),
+  { ssr: false }
+)
 
-const ChatMessages = dynamic(() => import('@/components/chat/chat-messages').then(mod => mod.ChatMessages), {
-  ssr: false,
-  loading: () => <div>Loading messages...</div>
-})
-
-const AnimationHeader = dynamic(() => import('@/components/animation-header').then(mod => mod.AnimationHeader), {
-  ssr: false,
-  loading: () => null
-})
-
-// Number of sessions to show initially and when loading more
 const SESSIONS_PER_PAGE = 5
 
-// Update type mapping
-const chatTypeMap: Record<ChatType, ChatType> = {
-  'symptom-checker': 'symptom-checker',
-  'report-analyzer': 'report-analyzer',
-  'mental-health': 'mental-health',
+function createSession(type: ChatType): ChatSession {
+  const mode = getMode(type)
+  const now = new Date()
+  return {
+    id: `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    title: mode.sessionTitle,
+    lastMessage: mode.greeting,
+    timestamp: now,
+    // The greeting lives in the empty state, so a new session starts with no
+    // messages — that is what makes the empty state reachable at all.
+    messages: [],
+  }
 }
 
 export default function MedicAI() {
-  // Initialize with a default session
-  const getDefaultSession = (): ChatSession => ({
-    id: Date.now().toString(),
-    type: 'symptom-checker',
-    title: 'New Chat',
-    lastMessage: "Hello! How can I help you with your medical concerns today?",
-    timestamp: new Date(),
-    messages: [
-      {
-        id: "1",
-        content: "Hello! How can I help you with your medical concerns today?",
-        sender: "assistant",
-        timestamp: new Date(),
-      },
-    ],
-  })
-
-  // Chat sessions state - start with just one default session
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>([getDefaultSession()])
-  const [visibleSessions, setVisibleSessions] = useState<ChatSession[]>([])
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>(() => [
+    createSession("symptom-checker"),
+  ])
+  const [activeSession, setActiveSession] = useState<ChatSession>(() => chatSessions[0])
   const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE)
-  const [hasMore, setHasMore] = useState(false)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
 
-  // Current active session
-  const [activeSession, setActiveSession] = useState<ChatSession>(chatSessions[0])
-
-  // Message states
-  const [messages, setMessages] = useState<Message[]>(chatSessions[0].messages)
   const [inputValue, setInputValue] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isTyping, setIsTyping] = useState(false)
   const [mounted, setMounted] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  // UI state
-  const [showNewChatMenu, setShowNewChatMenu] = useState(false)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-
-  const messagesEndRef = useRef<HTMLDivElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
+  const scrollRef = useRef<HTMLDivElement>(null)
   const isMobile = useMobileContext()
   const { toast } = useToast()
 
-  // Handle mounting
+  const mode = getMode(activeSession.type)
+  const messages = activeSession.messages
+
+  useEffect(() => setMounted(true), [])
+
+  const sorted = [...chatSessions].sort(
+    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+  )
+  const visibleSessions = sorted.slice(0, displayCount)
+  const hasMore = displayCount < chatSessions.length
+
+  /**
+   * Keeps the transcript pinned to the newest message.
+   * Sets scrollTop directly rather than calling scrollIntoView — the latter
+   * scrolls every ancestor, which hijacks the page inside embedded previews.
+   */
   useEffect(() => {
-    setMounted(true)
+    const el = scrollRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: messages.length > 1 ? "smooth" : "auto" })
+  }, [messages, isTyping])
+
+  /** Writes messages onto a session and keeps the list in sync. */
+  const patchSession = useCallback((id: string, next: Message[]) => {
+    setChatSessions((prev) =>
+      prev.map((s) =>
+        s.id === id
+          ? { ...s, messages: next, lastMessage: next[next.length - 1]?.content ?? s.lastMessage }
+          : s
+      )
+    )
+    setActiveSession((prev) =>
+      prev.id === id
+        ? { ...prev, messages: next, lastMessage: next[next.length - 1]?.content ?? prev.lastMessage }
+        : prev
+    )
   }, [])
 
-  // Update visible sessions when display count changes
-  useEffect(() => {
-    if (!mounted) return;
-    const sorted = [...chatSessions].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
-    setVisibleSessions(sorted.slice(0, displayCount))
-    setHasMore(displayCount < chatSessions.length)
-  }, [chatSessions, displayCount, mounted])
+  const handleNewSession = useCallback((type: ChatType) => {
+    const session = createSession(type)
+    setChatSessions((prev) => [session, ...prev])
+    setActiveSession(session)
+    setInputValue("")
+    setSelectedFile(null)
+    setSidebarOpen(false)
+  }, [])
 
-  // Update messages when active session changes
-  useEffect(() => {
-    if (!mounted) return;
-    setMessages(activeSession.messages)
-  }, [activeSession, mounted])
+  const handleSend = useCallback(
+    async (override?: string) => {
+      const text = (override ?? inputValue).trim()
+      if ((!text && !selectedFile) || isTyping) return
 
-  // Update active session messages when messages change
-  useEffect(() => {
-    if (!mounted) return;
-    setChatSessions((prev) =>
-      prev.map((session) =>
-        session.id === activeSession.id
-          ? { ...session, messages, lastMessage: messages[messages.length - 1]?.content || "" }
-          : session,
-      ),
-    )
-  }, [messages, activeSession.id, mounted])
+      const sessionId = activeSession.id
+      const userMessage: Message = {
+        id: `${Date.now()}-user`,
+        content: text,
+        sender: "user",
+        timestamp: new Date(),
+        hasFile: !!selectedFile,
+        fileName: selectedFile?.name,
+      }
 
-  // Scroll to bottom of messages
-  useEffect(() => {
-    if (!mounted) return;
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages, mounted])
+      const withUser = [...activeSession.messages, userMessage]
+      patchSession(sessionId, withUser)
+      setInputValue("")
 
-  // Render loading state while not mounted
-  if (!mounted) {
-    return <div>Loading...</div> // Or your loading component
-  }
+      // First real message names the session — "Symptom consultation" tells the
+      // user nothing once they have five of them.
+      if (activeSession.messages.length === 0 && text) {
+        const title = text.length > 42 ? `${text.slice(0, 42).trimEnd()}…` : text
+        setChatSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)))
+        setActiveSession((prev) => (prev.id === sessionId ? { ...prev, title } : prev))
+      }
 
-  // Load more sessions
+      let fileUrl: string | undefined
+      if (selectedFile) {
+        try {
+          fileUrl = await uploadFile(selectedFile)
+        } catch {
+          toast({
+            title: "Upload failed",
+            description: "That file could not be uploaded. Check the format and try again.",
+            variant: "destructive",
+          })
+          return
+        }
+        setSelectedFile(null)
+      }
+
+      setIsTyping(true)
+      try {
+        const response = await sendChatMessage({ type: activeSession.type, message: text, fileUrl })
+        const assistantMessage: Message = {
+          id: `${Date.now()}-assistant`,
+          content: response.message,
+          sender: "assistant",
+          timestamp: new Date(),
+        }
+        patchSession(sessionId, [...withUser, assistantMessage])
+      } catch {
+        toast({
+          title: "No response",
+          description: "MedicAI could not be reached. Your message is still here — try sending again.",
+          variant: "destructive",
+        })
+      } finally {
+        setIsTyping(false)
+      }
+    },
+    [activeSession, inputValue, selectedFile, isTyping, patchSession, toast]
+  )
+
   const loadMoreSessions = () => {
     setIsLoadingMore(true)
-
-    // Simulate loading delay
     setTimeout(() => {
       setDisplayCount((prev) => prev + SESSIONS_PER_PAGE)
       setIsLoadingMore(false)
-    }, 500)
+    }, 400)
   }
 
-  // Create a new chat session
-  const createNewSession = (type: ChatType) => {
-    const newSession: ChatSession = {
-      id: Date.now().toString(),
-      type,
-      title: getSessionTitle(type),
-      lastMessage: getInitialMessage(type),
-      timestamp: new Date(),
-      messages: [
-        {
-          id: "1",
-          content: getInitialMessage(type),
-          sender: "assistant",
-          timestamp: new Date(),
-        },
-      ],
-    }
-
-    setChatSessions((prev) => [newSession, ...prev])
-    setActiveSession(newSession)
-    setMessages(newSession.messages)
-    setShowNewChatMenu(false)
-  }
-
-  // Get initial message based on chat type
-  const getInitialMessage = (type: ChatType) => {
-    switch (type) {
-      case 'symptom-checker':
-        return "Hello! How can I help you with your medical concerns today?"
-      case 'report-analyzer':
-        return "Please upload your medical report and I'll analyze it for you."
-      case 'mental-health':
-        return "Welcome to the mental health support section. How are you feeling today?"
-    }
-  }
-
-  // Get session title based on chat type
-  const getSessionTitle = (type: ChatType) => {
-    switch (type) {
-      case 'symptom-checker':
-        return "New Medical Consultation"
-      case 'report-analyzer':
-        return "New Report Analysis"
-      case 'mental-health':
-        return "New Mental Health Support"
-    }
-  }
-
-  // Simulate typing indicator
-  const simulateTyping = (callback: () => void) => {
-    setIsTyping(true)
-    setTimeout(() => {
-      setIsTyping(false)
-      callback()
-    }, 1500)
-  }
-
-  // Update handleSendMessage function
-  const handleSendMessage = async () => {
-    if (!inputValue.trim() && !selectedFile) return
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      content: inputValue,
-      sender: 'user',
-      timestamp: new Date(),
-      hasFile: !!selectedFile,
-      fileName: selectedFile?.name
-    }
-
-    setMessages(prev => [...prev, newMessage])
-    setInputValue('')
-
-    let fileUrl: string | undefined
-    if (selectedFile) {
-      try {
-        fileUrl = await uploadFile(selectedFile)
-      } catch (error) {
-        toast({
-          title: 'Error uploading file',
-          description: 'Failed to upload the file. Please try again.',
-          variant: 'destructive'
-        })
-        return
-      }
-    setSelectedFile(null)
-    }
-
-    setIsTyping(true)
-
-    try {
-      const response = await sendChatMessage({
-        type: activeSession.type,
-        message: inputValue,
-        fileUrl
-      })
-
-      const assistantMessage: Message = {
-        id: Date.now().toString(),
-        content: response.message,
-        sender: 'assistant',
-        timestamp: new Date()
-      }
-
-      setMessages(prev => [...prev, assistantMessage])
-      
-      // Update the active session and chat sessions
-      const updatedSession = {
-        ...activeSession,
-        lastMessage: response.message,
-        messages: [...activeSession.messages, newMessage, assistantMessage]
-      }
-      
-      setActiveSession(updatedSession)
-      setChatSessions(prev =>
-        prev.map(session =>
-          session.id === activeSession.id ? updatedSession : session
-        )
-      )
-    } catch (error) {
-      toast({
-        title: 'Error',
-        description: 'Failed to get response. Please try again.',
-        variant: 'destructive'
-      })
-    } finally {
-      setIsTyping(false)
-    }
-  }
-
-  // Handle file selection
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      setSelectedFile(file)
-      toast({
-        title: `Medical report uploaded`,
-        description: `${file.name} has been uploaded successfully.`,
-      })
-    }
-  }
-
-  // Format timestamp
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  }
-
-  // Render chat messages
-  const renderMessages = () => (
-    <ChatMessages
-      messages={messages}
-      isTyping={isTyping}
-    />
-  )
-
-  // Render input area with file upload for report analyzer
-  const renderReportInput = () => (
-    <div className="p-4 border-t border-white/10">
-      {selectedFile && (
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-3 flex items-center justify-between p-2.5 bg-white/5 rounded-lg border border-white/10"
-        >
-          <div className="flex items-center gap-2">
-            <File size={16} className="text-white/60" />
-            <span className="text-sm truncate max-w-[200px] text-light">{selectedFile.name}</span>
-          </div>
-          <Button variant="ghost" size="icon" className="h-6 w-6 hover:bg-white/10" onClick={() => setSelectedFile(null)}>
-            <X size={12} />
-          </Button>
-        </motion.div>
-      )}
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 bg-white/5 border-white/10 hover:bg-white/10"
-        >
-          <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept=".pdf,image/*" />
-          <File size={16} className="text-gray-400" />
-        </Button>
-        <Input
-          placeholder="Ask about your medical report..."
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:border-white/30"
-        />
-        <Button
-          onClick={handleSendMessage}
-          disabled={(inputValue.trim() === "" && !selectedFile) || isTyping}
-          className="shrink-0 bg-white/10 hover:bg-white/20 transition-colors border border-white/20"
-        >
-          <Send size={16} />
-        </Button>
+  if (!mounted) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-ink-000">
+        <span className="sr-only">Loading MedicAI</span>
       </div>
-    </div>
-  )
-
-  // Render standard input area without file upload
-  const renderStandardInput = (placeholder: string) => (
-    <div className="p-4 border-t border-white/10">
-      <div className="flex gap-2">
-        <Input
-          placeholder={placeholder}
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
-          className="bg-white/5 border-white/10 text-light placeholder:text-gray-500 focus-visible:ring-1 focus-visible:ring-white/20 focus-visible:border-white/30"
-        />
-        <Button
-          onClick={handleSendMessage}
-          disabled={inputValue.trim() === "" || isTyping}
-          className="shrink-0 bg-white/10 hover:bg-white/20 transition-colors border border-white/20"
-        >
-          <Send size={16} />
-        </Button>
-      </div>
-    </div>
-  )
-
-  // Render chat history in sidebar with load more button
-  const renderChatHistory = () => (
-    <ChatHistory
-      visibleSessions={visibleSessions}
-      activeSession={activeSession}
-      setActiveSession={setActiveSession}
-      hasMore={hasMore}
-      isLoadingMore={isLoadingMore}
-      loadMoreSessions={loadMoreSessions}
-    />
-  )
+    )
+  }
 
   return (
-    <SidebarProvider defaultOpen={!isMobile}>
-      <div className="flex h-screen w-full bg-black">
-        <Sidebar className="z-50 w-64 flex-shrink-0 border-r border-white/10 glass-dark">
-          <div className="h-14 px-3 border-b border-white/10 flex items-center gap-2.5">
-            <div className="w-10 h-10 relative flex items-center justify-center">
-              <div className="absolute inset-0 rounded-lg bg-white/5" />
-              <svg
-                viewBox="0 0 32 32"
-                fill="none"
-                className="w-7 h-7 relative z-10"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <circle cx="16" cy="16" r="14" stroke="url(#navGrad1)" strokeWidth="1.5" fill="none" />
-                <circle cx="16" cy="16" r="10" stroke="url(#navGrad2)" strokeWidth="1.5" fill="none" />
-                <circle cx="16" cy="16" r="6" stroke="url(#navGrad3)" strokeWidth="1.5" fill="none" />
-                <path d="M16 10 L16 22 M10 16 L22 16" stroke="url(#navGrad4)" strokeWidth="1.5" strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="navGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
-                    <stop offset="100%" stopColor="#e5e5e5" stopOpacity="0.9" />
-                  </linearGradient>
-                  <linearGradient id="navGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.8" />
-                    <stop offset="100%" stopColor="#d4d4d4" stopOpacity="0.8" />
-                  </linearGradient>
-                  <linearGradient id="navGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" stopOpacity="0.7" />
-                    <stop offset="100%" stopColor="#c4c4c4" stopOpacity="0.7" />
-                  </linearGradient>
-                  <linearGradient id="navGrad4" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" />
-                    <stop offset="100%" stopColor="#d4d4d4" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-lg font-bold text-white tracking-tight">
-                MedicAI
-              </span>
-              <span className="text-[10px] text-white/50 font-medium uppercase tracking-wider">
-                Healthcare AI
-              </span>
-            </div>
-          </div>
+    <div className="relative flex h-[100dvh] overflow-hidden bg-ink-000">
+      <AmbientField />
 
-          <SidebarContent className="flex flex-col h-[calc(100vh-3.5rem)]">
-            <div className="p-2">
-            <Button
-              variant="outline"
-                className="w-full justify-start gap-2 bg-white/5 border-white/10 hover:bg-white/10 text-white text-sm"
-              onClick={() => setShowNewChatMenu(!showNewChatMenu)}
-            >
-              <PlusCircle size={16} className="text-gray-400" />
-              <span className="font-normal">New Chat</span>
-              <ChevronDown size={14} className={cn("ml-auto transition-transform text-gray-400", showNewChatMenu && "rotate-180")} />
-            </Button>
-
-            <AnimatePresence>
-              {showNewChatMenu && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: "auto", opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                    className="overflow-hidden mt-2"
-                >
-                    <div className="space-y-1">
-                      <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('symptom-checker')}>
-                        <MessageCircle size={16} className="text-white/60" />
-                        <span>General Chat</span>
-                      </Button>
-                      <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('report-analyzer')}>
-                        <ClipboardList size={16} className="text-white/60" />
-                        <span>Report Analyzer</span>
-                      </Button>
-                      <Button variant="ghost" className="w-full justify-start gap-2 hover:bg-white/5 text-gray-200" onClick={() => createNewSession('mental-health')}>
-                        <Heart size={16} className="text-white/60" />
-                        <span>Mental Health</span>
-                      </Button>
-                    </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-            </div>
-
-            <SidebarSeparator className="my-2 bg-white/10" />
-
-            <div className="flex-1 overflow-y-auto">
-            {renderChatHistory()}
-            </div>
-          </SidebarContent>
-
-          <SidebarFooter className="p-2 border-t border-white/10">
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => {}} className="w-full justify-start gap-2 hover:bg-white/5 text-gray-400 text-sm" tooltip="Settings">
-                    <Settings size={16} />
-                  <span>Settings</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarFooter>
-        </Sidebar>
-
-        <main className="flex-1 flex flex-col h-screen overflow-hidden">
-          <div className="flex-1 p-6 overflow-hidden">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeSession.id}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                transition={{ duration: 0.3 }}
-                className="h-full"
-              >
-                <Card className="flex flex-col h-full glass-dark rounded-2xl overflow-hidden">
-                  <AnimationHeader />
-                  <div className="flex-1 overflow-y-auto min-h-0">
-                    {renderMessages()}
-                  </div>
-                  {activeSession.type === "report-analyzer"
-                    ? renderReportInput()
-                    : renderStandardInput(
-                        activeSession.type === "symptom-checker"
-                          ? "Type your medical question..."
-                          : "Share how you're feeling today...",
-                      )}
-                </Card>
-              </motion.div>
-            </AnimatePresence>
-          </div>
-        </main>
+      {/* Desktop sidebar */}
+      <div className="hidden lg:flex">
+        <AppSidebar
+          visibleSessions={visibleSessions}
+          activeSession={activeSession}
+          setActiveSession={setActiveSession}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          loadMoreSessions={loadMoreSessions}
+          onNewSession={handleNewSession}
+        />
       </div>
-    </SidebarProvider>
+
+      {/* Mobile drawer */}
+      <AnimatePresence>
+        {sidebarOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setSidebarOpen(false)}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+            />
+            <motion.div
+              initial={{ x: "-100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "-100%" }}
+              transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
+              className="fixed inset-y-0 left-0 z-50 lg:hidden"
+            >
+              <AppSidebar
+                visibleSessions={visibleSessions}
+                activeSession={activeSession}
+                setActiveSession={(s) => {
+                  setActiveSession(s)
+                  setSidebarOpen(false)
+                }}
+                hasMore={hasMore}
+                isLoadingMore={isLoadingMore}
+                loadMoreSessions={loadMoreSessions}
+                onNewSession={handleNewSession}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      <main className="flex min-w-0 flex-1 flex-col">
+        <SessionHeader mode={mode} onToggleSidebar={() => setSidebarOpen((v) => !v)} />
+
+        <div ref={scrollRef} className={cn("min-h-0 flex-1 overflow-y-auto")}>
+          {messages.length === 0 ? (
+            <EmptyState key={activeSession.id} mode={mode} onPick={(t) => handleSend(t)} />
+          ) : (
+            <ChatMessages messages={messages} isTyping={isTyping} />
+          )}
+        </div>
+
+        <div className="mx-auto w-full max-w-3xl">
+          <Composer
+            mode={mode}
+            value={inputValue}
+            onChange={setInputValue}
+            onSend={() => handleSend()}
+            isBusy={isTyping}
+            file={selectedFile}
+            onFileSelect={(f) => {
+              setSelectedFile(f)
+              toast({ title: "Report attached", description: f.name })
+            }}
+            onFileClear={() => setSelectedFile(null)}
+          />
+        </div>
+      </main>
+    </div>
   )
 }

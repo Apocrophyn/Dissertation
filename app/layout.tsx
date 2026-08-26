@@ -1,14 +1,33 @@
-import type { Metadata } from "next"
-import { Inter } from "next/font/google"
+import type { Metadata, Viewport } from "next"
+import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { MobileProvider } from "@/components/providers/mobile-provider"
 
-const inter = Inter({ subsets: ["latin"] })
+const sans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-sans",
+  weight: ["400", "500", "600", "700", "800"],
+})
+
+const mono = JetBrains_Mono({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-mono",
+  weight: ["400", "500"],
+})
 
 export const metadata: Metadata = {
-  title: "MedicAI - Healthcare Assistant",
-  description: "Your intelligent medical assistant for symptom checking, report analysis, and mental health support",
+  title: "MedicAI — Healthcare Assistant",
+  description:
+    "Understand your symptoms, decode a medical report, or talk something through. MedicAI is an AI assistant for health questions — not a replacement for a clinician.",
+}
+
+export const viewport: Viewport = {
+  themeColor: "#08090A",
+  width: "device-width",
+  initialScale: 1,
 }
 
 export default function RootLayout({
@@ -17,15 +36,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en" className="dark" suppressHydrationWarning>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      </head>
-      <body className={inter.className}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <body className="font-sans antialiased">
         <MobileProvider>
-          <main className="min-h-screen">
-            {children}
-          </main>
+          {children}
           <Toaster />
         </MobileProvider>
       </body>

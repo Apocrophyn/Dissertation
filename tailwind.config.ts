@@ -19,7 +19,21 @@ const config = {
       },
     },
     extend: {
+      fontFamily: {
+        sans: ["var(--font-sans)", "ui-sans-serif", "system-ui", "sans-serif"],
+        mono: ["var(--font-mono)", "ui-monospace", "monospace"],
+      },
       colors: {
+        ink: {
+          "000": "rgb(var(--ink-000) / <alpha-value>)",
+          "050": "rgb(var(--ink-050) / <alpha-value>)",
+          100: "rgb(var(--ink-100) / <alpha-value>)",
+          150: "rgb(var(--ink-150) / <alpha-value>)",
+          200: "rgb(var(--ink-200) / <alpha-value>)",
+        },
+        signal: "rgb(var(--signal) / <alpha-value>)",
+        caution: "rgb(var(--caution) / <alpha-value>)",
+        urgent: "rgb(var(--urgent) / <alpha-value>)",
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
