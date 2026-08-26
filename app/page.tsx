@@ -1,106 +1,153 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useMemo } from "react"
 import dynamic from "next/dynamic"
 import { AnimatePresence, motion } from "framer-motion"
 
 import { useToast } from "@/components/ui/use-toast"
-import { useMobileContext } from "@/components/providers/mobile-provider"
 import { AmbientField } from "@/components/ambient-field"
 import { AppSidebar } from "@/components/chat/app-sidebar"
 import { SessionHeader } from "@/components/chat/session-header"
 import { Composer } from "@/components/chat/composer"
 import { EmptyState } from "@/components/chat/empty-state"
 import { getMode } from "@/components/chat/mode-config"
-import { sendChatMessage, uploadFile } from "@/lib/chat-api"
+import { prepareAttachment, sendChatMessage } from "@/lib/chat-api"
+import { loadChatHistory, saveChatHistory } from "@/lib/local-chat-history"
 import type { ChatType, ChatSession, Message } from "@/types/chat"
 import { cn } from "@/lib/utils"
 
 const ChatMessages = dynamic(
-  () => import("@/components/chat/chat-messages").then((m) => m.ChatMessages),
+  () => import("@/components/chat/chat-messages").then((module) => module.ChatMessages),
   { ssr: false }
 )
-
-const SESSIONS_PER_PAGE = 5
 
 function createSession(type: ChatType): ChatSession {
   const mode = getMode(type)
   const now = new Date()
   return {
-    id: `${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    id: crypto.randomUUID(),
     type,
     title: mode.sessionTitle,
     lastMessage: mode.greeting,
     timestamp: now,
-    // The greeting lives in the empty state, so a new session starts with no
-    // messages — that is what makes the empty state reachable at all.
     messages: [],
   }
 }
 
 export default function MedicAI() {
-  const [chatSessions, setChatSessions] = useState<ChatSession[]>(() => [
-    createSession("symptom-checker"),
-  ])
-  const [activeSession, setActiveSession] = useState<ChatSession>(() => chatSessions[0])
-  const [displayCount, setDisplayCount] = useState(SESSIONS_PER_PAGE)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-
+  const initialSession = useMemo(() => createSession("symptom-checker"), [])
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([initialSession])
+  const [activeSessionId, setActiveSessionId] = useState(initialSession.id)
+  const [historyReady, setHistoryReady] = useState(false)
   const [inputValue, setInputValue] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isTyping, setIsTyping] = useState(false)
-  const [mounted, setMounted] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
-  const isMobile = useMobileContext()
+  const storageWarningShown = useRef(false)
   const { toast } = useToast()
 
+  const activeSession =
+    chatSessions.find((session) => session.id === activeSessionId) ?? chatSessions[0]
   const mode = getMode(activeSession.type)
   const messages = activeSession.messages
 
-  useEffect(() => setMounted(true), [])
-
-  const sorted = [...chatSessions].sort(
-    (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-  )
-  const visibleSessions = sorted.slice(0, displayCount)
-  const hasMore = displayCount < chatSessions.length
-
-  /**
-   * Keeps the transcript pinned to the newest message.
-   * Sets scrollTop directly rather than calling scrollIntoView — the latter
-   * scrolls every ancestor, which hijacks the page inside embedded previews.
-   */
   useEffect(() => {
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: messages.length > 1 ? "smooth" : "auto" })
+    const stored = loadChatHistory()
+    if (stored.sessions.length > 0) {
+      setChatSessions(stored.sessions)
+      const activeExists = stored.sessions.some((session) => session.id === stored.activeSessionId)
+      setActiveSessionId(activeExists && stored.activeSessionId ? stored.activeSessionId : stored.sessions[0].id)
+    }
+    setHistoryReady(true)
+  }, [])
+
+  useEffect(() => {
+    if (!historyReady) return
+    const saved = saveChatHistory(chatSessions, activeSessionId)
+    if (!saved && !storageWarningShown.current) {
+      storageWarningShown.current = true
+      toast({
+        title: "History could not be saved",
+        description: "Your browser storage may be full or disabled.",
+        variant: "destructive",
+      })
+    }
+  }, [activeSessionId, chatSessions, historyReady, toast])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element) return
+    element.scrollTo({
+      top: element.scrollHeight,
+      behavior: messages.length > 1 ? "smooth" : "auto",
+    })
   }, [messages, isTyping])
 
-  /** Writes messages onto a session and keeps the list in sync. */
-  const patchSession = useCallback((id: string, next: Message[]) => {
-    setChatSessions((prev) =>
-      prev.map((s) =>
-        s.id === id
-          ? { ...s, messages: next, lastMessage: next[next.length - 1]?.content ?? s.lastMessage }
-          : s
+  const patchSession = useCallback((id: string, nextMessages: Message[], title?: string) => {
+    const now = new Date()
+    setChatSessions((previous) =>
+      previous.map((session) =>
+        session.id === id
+          ? {
+              ...session,
+              title: title ?? session.title,
+              messages: nextMessages,
+              lastMessage: nextMessages[nextMessages.length - 1]?.content ?? session.lastMessage,
+              timestamp: now,
+            }
+          : session
       )
     )
-    setActiveSession((prev) =>
-      prev.id === id
-        ? { ...prev, messages: next, lastMessage: next[next.length - 1]?.content ?? prev.lastMessage }
-        : prev
-    )
+  }, [])
+
+  const handleSelectSession = useCallback((session: ChatSession) => {
+    setActiveSessionId(session.id)
+    setInputValue("")
+    setSelectedFile(null)
+    setSidebarOpen(false)
   }, [])
 
   const handleNewSession = useCallback((type: ChatType) => {
     const session = createSession(type)
-    setChatSessions((prev) => [session, ...prev])
-    setActiveSession(session)
+    setChatSessions((previous) => [session, ...previous])
+    setActiveSessionId(session.id)
     setInputValue("")
     setSelectedFile(null)
     setSidebarOpen(false)
+  }, [])
+
+  const handleRenameSession = useCallback((id: string, nextTitle: string) => {
+    const title = nextTitle.trim().slice(0, 80)
+    if (!title) return
+    setChatSessions((previous) =>
+      previous.map((session) => (session.id === id ? { ...session, title } : session))
+    )
+  }, [])
+
+  const handleDeleteSession = useCallback(
+    (id: string) => {
+      const remaining = chatSessions.filter((session) => session.id !== id)
+      if (remaining.length === 0) {
+        const replacement = createSession("symptom-checker")
+        setChatSessions([replacement])
+        setActiveSessionId(replacement.id)
+        return
+      }
+
+      setChatSessions(remaining)
+      if (activeSessionId === id) setActiveSessionId(remaining[0].id)
+    },
+    [activeSessionId, chatSessions]
+  )
+
+  const handleDeleteAll = useCallback(() => {
+    const replacement = createSession("symptom-checker")
+    setChatSessions([replacement])
+    setActiveSessionId(replacement.id)
+    setInputValue("")
+    setSelectedFile(null)
   }, [])
 
   const handleSend = useCallback(
@@ -108,57 +155,63 @@ export default function MedicAI() {
       const text = (override ?? inputValue).trim()
       if ((!text && !selectedFile) || isTyping) return
 
-      const sessionId = activeSession.id
+      let attachment
+      if (selectedFile) {
+        try {
+          attachment = await prepareAttachment(selectedFile)
+        } catch (error) {
+          toast({
+            title: "Attachment not accepted",
+            description: error instanceof Error ? error.message : "Try a smaller PDF or image.",
+            variant: "destructive",
+          })
+          return
+        }
+      }
+
+      const session = activeSession
       const userMessage: Message = {
-        id: `${Date.now()}-user`,
-        content: text,
+        id: crypto.randomUUID(),
+        content: text || `Attached ${selectedFile?.name}`,
         sender: "user",
         timestamp: new Date(),
         hasFile: !!selectedFile,
         fileName: selectedFile?.name,
       }
+      const withUser = [...session.messages, userMessage]
+      const automaticTitle =
+        session.messages.length === 0 && text
+          ? text.length > 42
+            ? `${text.slice(0, 42).trimEnd()}…`
+            : text
+          : undefined
 
-      const withUser = [...activeSession.messages, userMessage]
-      patchSession(sessionId, withUser)
+      patchSession(session.id, withUser, automaticTitle)
       setInputValue("")
-
-      // First real message names the session — "Symptom consultation" tells the
-      // user nothing once they have five of them.
-      if (activeSession.messages.length === 0 && text) {
-        const title = text.length > 42 ? `${text.slice(0, 42).trimEnd()}…` : text
-        setChatSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, title } : s)))
-        setActiveSession((prev) => (prev.id === sessionId ? { ...prev, title } : prev))
-      }
-
-      let fileUrl: string | undefined
-      if (selectedFile) {
-        try {
-          fileUrl = await uploadFile(selectedFile)
-        } catch {
-          toast({
-            title: "Upload failed",
-            description: "That file could not be uploaded. Check the format and try again.",
-            variant: "destructive",
-          })
-          return
-        }
-        setSelectedFile(null)
-      }
-
+      setSelectedFile(null)
       setIsTyping(true)
+
       try {
-        const response = await sendChatMessage({ type: activeSession.type, message: text, fileUrl })
+        const response = await sendChatMessage({
+          type: session.type,
+          message: text,
+          history: session.messages.map(({ sender, content }) => ({ sender, content })),
+          attachment,
+        })
         const assistantMessage: Message = {
-          id: `${Date.now()}-assistant`,
+          id: crypto.randomUUID(),
           content: response.message,
           sender: "assistant",
           timestamp: new Date(),
         }
-        patchSession(sessionId, [...withUser, assistantMessage])
-      } catch {
+        patchSession(session.id, [...withUser, assistantMessage], automaticTitle)
+      } catch (error) {
         toast({
           title: "No response",
-          description: "MedicAI could not be reached. Your message is still here — try sending again.",
+          description:
+            error instanceof Error
+              ? error.message
+              : "MedicAI could not be reached. Your message is saved — please try again.",
           variant: "destructive",
         })
       } finally {
@@ -168,15 +221,7 @@ export default function MedicAI() {
     [activeSession, inputValue, selectedFile, isTyping, patchSession, toast]
   )
 
-  const loadMoreSessions = () => {
-    setIsLoadingMore(true)
-    setTimeout(() => {
-      setDisplayCount((prev) => prev + SESSIONS_PER_PAGE)
-      setIsLoadingMore(false)
-    }, 400)
-  }
-
-  if (!mounted) {
+  if (!historyReady) {
     return (
       <div className="grid min-h-screen place-items-center bg-ink-000">
         <span className="sr-only">Loading MedicAI</span>
@@ -184,26 +229,26 @@ export default function MedicAI() {
     )
   }
 
+  const sidebar = (
+    <AppSidebar
+      sessions={chatSessions}
+      activeSession={activeSession}
+      setActiveSession={handleSelectSession}
+      onNewSession={handleNewSession}
+      onRenameSession={handleRenameSession}
+      onDeleteSession={handleDeleteSession}
+      onDeleteAll={handleDeleteAll}
+    />
+  )
+
   return (
     <div className="relative flex h-[100dvh] overflow-hidden bg-ink-000">
       <AmbientField />
 
-      {/* Desktop sidebar */}
-      <div className="hidden lg:flex">
-        <AppSidebar
-          visibleSessions={visibleSessions}
-          activeSession={activeSession}
-          setActiveSession={setActiveSession}
-          hasMore={hasMore}
-          isLoadingMore={isLoadingMore}
-          loadMoreSessions={loadMoreSessions}
-          onNewSession={handleNewSession}
-        />
-      </div>
+      <div className="hidden lg:flex">{sidebar}</div>
 
-      {/* Mobile drawer */}
       <AnimatePresence>
-        {sidebarOpen && (
+        {sidebarOpen ? (
           <>
             <motion.div
               initial={{ opacity: 0 }}
@@ -220,29 +265,22 @@ export default function MedicAI() {
               transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
               className="fixed inset-y-0 left-0 z-50 lg:hidden"
             >
-              <AppSidebar
-                visibleSessions={visibleSessions}
-                activeSession={activeSession}
-                setActiveSession={(s) => {
-                  setActiveSession(s)
-                  setSidebarOpen(false)
-                }}
-                hasMore={hasMore}
-                isLoadingMore={isLoadingMore}
-                loadMoreSessions={loadMoreSessions}
-                onNewSession={handleNewSession}
-              />
+              {sidebar}
             </motion.div>
           </>
-        )}
+        ) : null}
       </AnimatePresence>
 
       <main className="flex min-w-0 flex-1 flex-col">
-        <SessionHeader mode={mode} onToggleSidebar={() => setSidebarOpen((v) => !v)} />
+        <SessionHeader
+          mode={mode}
+          title={activeSession.title}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        />
 
         <div ref={scrollRef} className={cn("min-h-0 flex-1 overflow-y-auto")}>
           {messages.length === 0 ? (
-            <EmptyState key={activeSession.id} mode={mode} onPick={(t) => handleSend(t)} />
+            <EmptyState key={activeSession.id} mode={mode} onPick={(text) => handleSend(text)} />
           ) : (
             <ChatMessages messages={messages} isTyping={isTyping} />
           )}
@@ -256,9 +294,9 @@ export default function MedicAI() {
             onSend={() => handleSend()}
             isBusy={isTyping}
             file={selectedFile}
-            onFileSelect={(f) => {
-              setSelectedFile(f)
-              toast({ title: "Report attached", description: f.name })
+            onFileSelect={(file) => {
+              setSelectedFile(file)
+              toast({ title: "Report attached", description: file.name })
             }}
             onFileClear={() => setSelectedFile(null)}
           />

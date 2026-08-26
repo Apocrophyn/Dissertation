@@ -5,9 +5,11 @@ import type { ModeConfig } from "./mode-config"
 
 export function SessionHeader({
   mode,
+  title,
   onToggleSidebar,
 }: {
   mode: ModeConfig
+  title: string
   onToggleSidebar: () => void
 }) {
   const Icon = mode.icon
@@ -29,9 +31,11 @@ export function SessionHeader({
 
       <div className="min-w-0 flex-1">
         <h1 className="truncate text-[0.9375rem] font-semibold leading-tight tracking-[-0.015em] text-primary-ink">
-          {mode.label}
+          {title}
         </h1>
-        <p className="truncate text-[0.75rem] leading-normal text-tertiary-ink">{mode.tagline}</p>
+        <p className="truncate text-[0.75rem] leading-normal text-tertiary-ink">
+          {mode.label} · {mode.tagline}
+        </p>
       </div>
 
       {/* Trust signal — medical software should say what it is, always visible */}

@@ -1,65 +1,37 @@
-import { createClient } from '@/lib/supabase/client'
-import { ChatRequest, ChatResponse } from '@/types/chat'
+import type { ChatAttachment, ChatRequest, ChatResponse } from '@/types/chat'
 
 export async function sendChatMessage(request: ChatRequest): Promise<ChatResponse> {
-  try {
-    const response = await fetch('/api/v1/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(request),
-    })
+  const response = await fetch('/api/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+  })
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data as ChatResponse
-  } catch (error) {
-    console.error('Error sending chat message:', error)
-    return {
-      message: 'Sorry, there was an error processing your request. Please try again.',
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+  const data = (await response.json().catch(() => ({}))) as Partial<ChatResponse>
+  if (!response.ok || !data.message) {
+    throw new Error(data.error || `MedicAI request failed (${response.status})`)
   }
+
+  return data as ChatResponse
 }
 
-export async function uploadFile(file: File): Promise<string> {
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
+const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
 
-    const response = await fetch('/api/v1/upload', {
-      method: 'POST',
-      body: formData,
-    })
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`)
-    }
-
-    const data = await response.json()
-    return data.url
-  } catch (error) {
-    console.error('Error uploading file:', error)
-    throw new Error('Failed to upload file')
+export async function prepareAttachment(file: File): Promise<ChatAttachment> {
+  if (file.size > MAX_ATTACHMENT_BYTES) {
+    throw new Error('Attachments must be smaller than 3 MB')
   }
+
+  if (file.type !== 'application/pdf' && !file.type.startsWith('image/')) {
+    throw new Error('Only PDF and image attachments are supported')
+  }
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result))
+    reader.onerror = () => reject(new Error('The attachment could not be read'))
+    reader.readAsDataURL(file)
+  })
+
+  return { name: file.name, type: file.type, dataUrl }
 }
-
-export async function getChatHistory() {
-  const supabase = createClient()
-  const { data, error } = await supabase
-    .from('chat_messages')
-    .select('*')
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  if (error) {
-    console.error('Error fetching chat history:', error)
-    return []
-  }
-
-  return data
-} 

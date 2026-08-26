@@ -3,7 +3,8 @@ export type ChatType = 'symptom-checker' | 'report-analyzer' | 'mental-health';
 export interface ChatRequest {
   type: ChatType;
   message: string;
-  fileUrl?: string;
+  history?: Array<Pick<Message, 'sender' | 'content'>>;
+  attachment?: ChatAttachment;
 }
 
 export interface ChatResponse {
@@ -21,6 +22,12 @@ export interface Message {
   fileName?: string;
 }
 
+export interface ChatAttachment {
+  name: string;
+  type: string;
+  dataUrl: string;
+}
+
 export interface ChatSession {
   id: string;
   type: ChatType;
@@ -28,4 +35,4 @@ export interface ChatSession {
   lastMessage: string;
   timestamp: Date;
   messages: Message[];
-} 
+}
