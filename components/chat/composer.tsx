@@ -1,10 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react"
-import { ArrowUp, Paperclip, X, FileText, Loader2 } from "lucide-react"
+import { ArrowUp, Paperclip, X, FileText, Square } from "lucide-react"
 import { motion, AnimatePresence } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { useSpotlight } from "@/components/ui/spotlight"
+import { GlassOrb, orbClass } from "@/components/ui/glass-orb"
 import type { ModeConfig } from "./mode-config"
 
 const MAX_ROWS_PX = 200
@@ -14,6 +15,7 @@ interface ComposerProps {
   value: string
   onChange: (v: string) => void
   onSend: () => void
+  onStop: () => void
   isBusy: boolean
   file: File | null
   onFileSelect: (f: File) => void
@@ -25,6 +27,7 @@ export function Composer({
   value,
   onChange,
   onSend,
+  onStop,
   isBusy,
   file,
   onFileSelect,
@@ -87,7 +90,10 @@ export function Composer({
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         className={cn(
-          "spotlight surface rounded-[var(--r-xl)] transition-colors duration-200",
+          // The dock is the deepest piece of glass on the page: it has to hold
+          // its own against a scrolling transcript directly behind it.
+          "spotlight surface relative rounded-[28px] transition-colors duration-200",
+          "shadow-[inset_0_1px_0_rgb(255_255_255/0.07),var(--e4)]",
           dragging && "border-signal/50"
         )}
       >
@@ -100,10 +106,10 @@ export function Composer({
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
               className="overflow-hidden"
             >
-              <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-[var(--r-sm)] bg-signal/10">
-                  <FileText className="h-4 w-4 text-signal" />
-                </div>
+              <div className="flex items-center gap-3 border-b border-white/[0.06] px-3.5 py-3">
+                <GlassOrb tone="signal" size="md" aria-hidden>
+                  <FileText className="h-4 w-4" />
+                </GlassOrb>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm text-primary-ink">{file.name}</p>
                   <p className="meta mt-0.5" data-numeric>
@@ -114,7 +120,7 @@ export function Composer({
                   type="button"
                   onClick={onFileClear}
                   aria-label={`Remove ${file.name}`}
-                  className="grid h-8 w-8 place-items-center rounded-[var(--r-sm)] text-tertiary-ink transition-colors hover:bg-white/[0.06] hover:text-primary-ink"
+                  className={orbClass({ size: "md" })}
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -141,7 +147,7 @@ export function Composer({
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 aria-label="Attach a report"
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--r-md)] text-tertiary-ink transition-colors hover:bg-white/[0.06] hover:text-primary-ink sm:h-10 sm:w-10"
+                className={orbClass({ size: "xl" })}
               >
                 <Paperclip className="h-[18px] w-[18px]" />
               </button>
@@ -156,31 +162,38 @@ export function Composer({
             onKeyDown={handleKeyDown}
             placeholder={mode.placeholder}
             aria-label={mode.placeholder}
-            className="flex-1 resize-none overflow-hidden bg-transparent px-2 py-2.5 text-[0.9375rem] leading-relaxed text-primary-ink outline-none placeholder:text-tertiary-ink"
+            className="flex-1 resize-none overflow-hidden bg-transparent px-2 py-3 text-[0.9375rem] leading-relaxed text-primary-ink outline-none placeholder:text-tertiary-ink"
           />
 
-          <button
-            type="button"
-            onClick={onSend}
-            disabled={!canSend}
-            aria-label={isBusy ? "MedicAI is responding" : "Send message"}
-            className={cn(
-              "grid h-11 w-11 shrink-0 place-items-center rounded-[var(--r-md)] transition-all duration-200 sm:h-10 sm:w-10",
-              canSend
-                ? "bg-signal text-ink-000 shadow-[0_2px_12px_-2px_rgb(var(--signal)/0.5)] hover:brightness-110 active:scale-95"
-                : "bg-white/[0.06] text-tertiary-ink cursor-not-allowed"
-            )}
-          >
-            {isBusy ? (
-              <Loader2 className="h-[18px] w-[18px] animate-spin" />
-            ) : (
+          {/* One control, two jobs: send, or take the reply back. Stopping is
+              the only escape from a long answer, so it must not hide. */}
+          {isBusy ? (
+            <button
+              type="button"
+              onClick={onStop}
+              aria-label="Stop responding"
+              className={orbClass({ size: "xl" })}
+            >
+              <Square className="h-[15px] w-[15px] fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={!canSend}
+              aria-label="Send message"
+              className={cn(
+                orbClass({ size: "xl", tone: canSend ? "solid" : "quiet", interactive: canSend }),
+                !canSend && "cursor-not-allowed text-tertiary-ink opacity-60"
+              )}
+            >
               <ArrowUp className="h-[18px] w-[18px]" />
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
 
-      <p className="mx-auto mt-3 max-w-xl text-center text-[0.75rem] leading-relaxed text-tertiary-ink">
+      <p className="mx-auto mt-3 max-w-xl text-balance text-center text-[0.75rem] leading-relaxed text-tertiary-ink">
         {mode.disclaimer}
       </p>
     </div>

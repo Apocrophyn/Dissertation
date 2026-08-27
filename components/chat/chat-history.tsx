@@ -29,6 +29,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { GlassOrb, orbClass } from "@/components/ui/glass-orb"
 import { cn } from "@/lib/utils"
 
 interface ChatHistoryProps {
@@ -106,31 +107,27 @@ export function ChatHistory({
                     <div
                       key={session.id}
                       className={cn(
-                        "group relative flex items-center rounded-[var(--r-sm)] transition-colors duration-150",
+                        "group relative flex items-center rounded-full transition-colors duration-150",
                         isActive
                           ? "bg-white/[0.07] text-primary-ink"
                           : "text-secondary-ink hover:bg-white/[0.04] hover:text-primary-ink"
                       )}
                     >
-                      <span
-                        aria-hidden
-                        className={cn(
-                          "absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-r-full bg-signal transition-opacity duration-200",
-                          isActive ? "opacity-100" : "opacity-0"
-                        )}
-                      />
                       <button
                         type="button"
                         onClick={() => setActiveSession(session)}
                         aria-current={isActive ? "page" : undefined}
-                        className="flex min-w-0 flex-1 items-center gap-2.5 py-2 pl-2.5 pr-1 text-left"
+                        className="flex min-w-0 flex-1 items-center gap-2.5 py-1.5 pl-1.5 pr-1 text-left"
                       >
-                        <Icon
-                          className={cn(
-                            "h-4 w-4 shrink-0 transition-colors",
-                            isActive ? "text-signal" : "text-tertiary-ink group-hover:text-secondary-ink"
-                          )}
-                        />
+                        <GlassOrb
+                          size="sm"
+                          flat
+                          tone={isActive ? "signal" : "quiet"}
+                          aria-hidden
+                          className="transition-colors duration-150 group-hover:text-secondary-ink"
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </GlassOrb>
                         <span className="truncate text-[0.8125rem]">{session.title}</span>
                       </button>
                       <DropdownMenu>
@@ -138,7 +135,10 @@ export function ChatHistory({
                           <button
                             type="button"
                             aria-label={`Actions for ${session.title}`}
-                            className="mr-1 grid h-7 w-7 shrink-0 place-items-center rounded-md text-tertiary-ink opacity-0 transition-all hover:bg-white/[0.07] hover:text-primary-ink focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                            className={cn(
+                              orbClass({ size: "sm", flat: true }),
+                              "mr-1.5 opacity-0 focus:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
+                            )}
                           >
                             <MoreHorizontal className="h-4 w-4" />
                           </button>
@@ -173,7 +173,7 @@ export function ChatHistory({
             <button
               type="button"
               onClick={loadMoreSessions}
-              className="w-full rounded-[var(--r-sm)] px-2.5 py-2 text-[0.8125rem] text-tertiary-ink transition-colors hover:bg-white/[0.04] hover:text-primary-ink"
+              className="w-full rounded-full px-2.5 py-2 text-[0.8125rem] text-tertiary-ink transition-colors hover:bg-white/[0.04] hover:text-primary-ink"
             >
               Show older
             </button>

@@ -11,7 +11,7 @@ import { SessionHeader } from "@/components/chat/session-header"
 import { Composer } from "@/components/chat/composer"
 import { EmptyState } from "@/components/chat/empty-state"
 import { getMode } from "@/components/chat/mode-config"
-import { prepareAttachment, sendChatMessage } from "@/lib/chat-api"
+import { prepareAttachment, streamChatMessage } from "@/lib/chat-api"
 import { loadChatHistory, saveChatHistory } from "@/lib/local-chat-history"
 import type { ChatType, ChatSession, Message } from "@/types/chat"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,18 @@ const ChatMessages = dynamic(
   () => import("@/components/chat/chat-messages").then((module) => module.ChatMessages),
   { ssr: false }
 )
+
+/**
+ * Tokens arrive faster than the eye resolves them and every one of them
+ * re-parses the Markdown, so deltas are batched to roughly three frames.
+ * Slower reads as laggy; faster buys nothing.
+ */
+const STREAM_FLUSH_MS = 50
+
+/** A stop the user asked for is not a failure, and must not raise a toast. */
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError"
+}
 
 function createSession(type: ChatType): ChatSession {
   const mode = getMode(type)
@@ -42,10 +54,14 @@ export default function MedicAI() {
   const [inputValue, setInputValue] = useState("")
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isTyping, setIsTyping] = useState(false)
+  /** The id of the message currently receiving tokens, or null. */
+  const [streamingId, setStreamingId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const storageWarningShown = useRef(false)
+  const abortRef = useRef<AbortController | null>(null)
+  const pinnedRef = useRef(true)
   const { toast } = useToast()
 
   const activeSession =
@@ -65,6 +81,10 @@ export default function MedicAI() {
 
   useEffect(() => {
     if (!historyReady) return
+    // A stream rewrites the active message every few frames; serialising the
+    // whole history that often would jank the reveal. The final state is
+    // written when streamingId falls back to null.
+    if (streamingId) return
     const saved = saveChatHistory(chatSessions, activeSessionId)
     if (!saved && !storageWarningShown.current) {
       storageWarningShown.current = true
@@ -74,16 +94,33 @@ export default function MedicAI() {
         variant: "destructive",
       })
     }
-  }, [activeSessionId, chatSessions, historyReady, toast])
+  }, [activeSessionId, chatSessions, historyReady, streamingId, toast])
 
+  // Follow the conversation, but never yank the viewport away from someone who
+  // has scrolled up on purpose to re-read an earlier answer.
   useEffect(() => {
     const element = scrollRef.current
     if (!element) return
+    const onScroll = () => {
+      pinnedRef.current = element.scrollHeight - element.scrollTop - element.clientHeight < 120
+    }
+    element.addEventListener("scroll", onScroll, { passive: true })
+    return () => element.removeEventListener("scroll", onScroll)
+  }, [historyReady])
+
+  useEffect(() => {
+    const element = scrollRef.current
+    if (!element || !pinnedRef.current) return
     element.scrollTo({
       top: element.scrollHeight,
-      behavior: messages.length > 1 ? "smooth" : "auto",
+      // Smooth scrolling cannot keep up with a stream landing every few
+      // frames — mid-reply it has to be an instant jump.
+      behavior: streamingId || messages.length <= 1 ? "auto" : "smooth",
     })
-  }, [messages, isTyping])
+  }, [messages, isTyping, streamingId])
+
+  // Leaving the page mid-reply should stop the request, not orphan it.
+  useEffect(() => () => abortRef.current?.abort(), [])
 
   const patchSession = useCallback((id: string, nextMessages: Message[], title?: string) => {
     const now = new Date()
@@ -102,7 +139,32 @@ export default function MedicAI() {
     )
   }, [])
 
+  /**
+   * Rewrites one message in place. `patchSession` replaces the whole array,
+   * which is the wrong shape for a value that changes every few frames.
+   */
+  const setMessageContent = useCallback((sessionId: string, messageId: string, content: string) => {
+    const now = new Date()
+    setChatSessions((previous) =>
+      previous.map((session) =>
+        session.id === sessionId
+          ? {
+              ...session,
+              messages: session.messages.map((message) =>
+                message.id === messageId ? { ...message, content } : message
+              ),
+              lastMessage: content,
+              timestamp: now,
+            }
+          : session
+      )
+    )
+  }, [])
+
+  const handleStop = useCallback(() => abortRef.current?.abort(), [])
+
   const handleSelectSession = useCallback((session: ChatSession) => {
+    pinnedRef.current = true
     setActiveSessionId(session.id)
     setInputValue("")
     setSelectedFile(null)
@@ -186,39 +248,95 @@ export default function MedicAI() {
             : text
           : undefined
 
+      pinnedRef.current = true
       patchSession(session.id, withUser, automaticTitle)
       setInputValue("")
       setSelectedFile(null)
       setIsTyping(true)
 
-      try {
-        const response = await sendChatMessage({
-          type: session.type,
-          message: text,
-          history: session.messages.map(({ sender, content }) => ({ sender, content })),
-          attachment,
-        })
-        const assistantMessage: Message = {
-          id: crypto.randomUUID(),
-          content: response.message,
-          sender: "assistant",
-          timestamp: new Date(),
+      const controller = new AbortController()
+      abortRef.current = controller
+
+      // The reply is written straight into the transcript as it arrives. The
+      // bubble is only created on the first token, so the thinking indicator
+      // is never replaced by an empty one.
+      const assistantId = crypto.randomUUID()
+      const startedAt = new Date()
+      let answer = ""
+      let created = false
+      let flushTimer: ReturnType<typeof setTimeout> | null = null
+
+      const commit = () => {
+        if (flushTimer !== null) {
+          clearTimeout(flushTimer)
+          flushTimer = null
         }
-        patchSession(session.id, [...withUser, assistantMessage], automaticTitle)
+        if (created) {
+          setMessageContent(session.id, assistantId, answer)
+          return
+        }
+        created = true
+        setStreamingId(assistantId)
+        const assistantMessage: Message = {
+          id: assistantId,
+          content: answer,
+          sender: "assistant",
+          timestamp: startedAt,
+        }
+        setChatSessions((previous) =>
+          previous.map((item) =>
+            item.id === session.id
+              ? {
+                  ...item,
+                  messages: [...item.messages, assistantMessage],
+                  lastMessage: answer,
+                  timestamp: new Date(),
+                }
+              : item
+          )
+        )
+      }
+
+      try {
+        answer = await streamChatMessage(
+          {
+            type: session.type,
+            message: text,
+            history: session.messages.map(({ sender, content }) => ({ sender, content })),
+            attachment,
+          },
+          {
+            signal: controller.signal,
+            onDelta: (delta) => {
+              answer += delta
+              if (flushTimer === null) flushTimer = setTimeout(commit, STREAM_FLUSH_MS)
+            },
+          }
+        )
+        commit()
       } catch (error) {
-        toast({
-          title: "No response",
-          description:
-            error instanceof Error
-              ? error.message
-              : "MedicAI could not be reached. Your message is saved — please try again.",
-          variant: "destructive",
-        })
+        // Whatever already arrived is real and stays on screen, whether the
+        // user stopped the reply or the connection did.
+        if (answer) commit()
+        else if (flushTimer !== null) clearTimeout(flushTimer)
+
+        if (!isAbortError(error)) {
+          toast({
+            title: "No response",
+            description:
+              error instanceof Error
+                ? error.message
+                : "MedicAI could not be reached. Your message is saved — please try again.",
+            variant: "destructive",
+          })
+        }
       } finally {
+        abortRef.current = null
+        setStreamingId(null)
         setIsTyping(false)
       }
     },
-    [activeSession, inputValue, selectedFile, isTyping, patchSession, toast]
+    [activeSession, inputValue, selectedFile, isTyping, patchSession, setMessageContent, toast]
   )
 
   if (!historyReady) {
@@ -282,7 +400,7 @@ export default function MedicAI() {
           {messages.length === 0 ? (
             <EmptyState key={activeSession.id} mode={mode} onPick={(text) => handleSend(text)} />
           ) : (
-            <ChatMessages messages={messages} isTyping={isTyping} />
+            <ChatMessages messages={messages} isTyping={isTyping} streamingId={streamingId} />
           )}
         </div>
 
@@ -292,6 +410,7 @@ export default function MedicAI() {
             value={inputValue}
             onChange={setInputValue}
             onSend={() => handleSend()}
+            onStop={handleStop}
             isBusy={isTyping}
             file={selectedFile}
             onFileSelect={(file) => {

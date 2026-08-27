@@ -8,6 +8,22 @@ const MAX_MESSAGE_LENGTH = 8_000
 const MAX_HISTORY_MESSAGES = 20
 const MAX_ATTACHMENT_BYTES = 3 * 1024 * 1024
 
+/**
+ * The client renders GitHub-flavoured Markdown, so the model is told to write
+ * it. Without this the answers arrive as one undifferentiated wall of prose
+ * with literal asterisks in it.
+ */
+const FORMATTING = [
+  'FORMAT — reply in GitHub-flavoured Markdown:',
+  '- Open with one short plain-language paragraph that answers the question directly.',
+  '- Use `##` sub-headings once a reply covers more than two distinct points.',
+  '- Use `-` bullets for lists and numbered lists for ordered steps; keep each item to a line or two.',
+  '- **Bold** the terms that matter, and always bold red-flag warnings.',
+  '- Use a table only for genuinely tabular data, such as values against their reference ranges.',
+  '- Never wrap the whole reply in a code fence, and never open with a heading that just restates the question.',
+  '- No filler, no preamble, no sign-off.',
+].join('\n')
+
 const systemMessages: Record<ChatType, string> = {
   'symptom-checker':
     'You are MedicAI, a careful medical information assistant. Ask focused follow-up questions, explain possibilities in plain language, and give practical next steps. Never claim to diagnose. Clearly flag emergency warning signs and advise professional care when appropriate.',
@@ -15,6 +31,10 @@ const systemMessages: Record<ChatType, string> = {
     'You are MedicAI, a careful medical report explainer. Explain findings and abnormal values in plain language, preserve uncertainty, and suggest questions for the user to ask their clinician. Never present your explanation as a diagnosis.',
   'mental-health':
     'You are MedicAI, a supportive mental wellbeing assistant. Be empathetic, practical, and non-judgmental. Do not claim to be a therapist. If the user may be in immediate danger or considering self-harm, encourage immediate local emergency or crisis support.',
+}
+
+function isAbort(error: unknown): boolean {
+  return error instanceof Error && (error.name === 'AbortError' || error.name === 'APIUserAbortError')
 }
 
 function isChatType(value: unknown): value is ChatType {
@@ -104,22 +124,56 @@ export async function POST(request: Request) {
     }
 
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    const completion = await openai.chat.completions.create({
-      model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
-      messages: [
-        { role: 'system', content: systemMessages[body.type] },
-        ...history,
-        { role: 'user', content: currentContent },
-      ],
-      temperature: 0.5,
-      max_tokens: 1_200,
+    const completion = await openai.chat.completions.create(
+      {
+        model: process.env.OPENAI_MODEL || 'gpt-4.1-mini',
+        messages: [
+          { role: 'system', content: `${systemMessages[body.type]}\n\n${FORMATTING}` },
+          ...history,
+          { role: 'user', content: currentContent },
+        ],
+        temperature: 0.5,
+        max_tokens: 1_200,
+        stream: true,
+      },
+      // The user can abandon a reply mid-flight; propagate that upstream so we
+      // stop paying for tokens nobody will read.
+      { signal: request.signal }
+    )
+
+    // Everything that can fail with a status code has already been checked, so
+    // the response can start the moment the first token lands.
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const chunk of completion) {
+            const delta = chunk.choices[0]?.delta?.content
+            if (delta) controller.enqueue(encoder.encode(delta))
+          }
+        } catch (error) {
+          // The headers are already sent, so this cannot become an error
+          // status. Close cleanly and let the client keep the partial answer.
+          if (!isAbort(error)) console.error('Chat stream interrupted:', error)
+        } finally {
+          controller.close()
+        }
+      },
+      cancel() {
+        completion.controller.abort()
+      },
     })
 
-    const answer = completion.choices[0]?.message?.content?.trim()
-    if (!answer) throw new Error('OpenAI returned an empty response')
-
-    return NextResponse.json({ message: answer })
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-store',
+        // Proxies that buffer would defeat the point of streaming at all.
+        'X-Accel-Buffering': 'no',
+      },
+    })
   } catch (error) {
+    if (isAbort(error)) return new Response(null, { status: 499 })
     console.error('Chat request failed:', error)
     const message = error instanceof Error && /attachment|PDF/i.test(error.message)
       ? error.message
